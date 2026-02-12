@@ -1,148 +1,136 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
--- サービス取得
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
 
--- 初期設定
-getgenv().KillAuraActive = false
-getgenv().antiGrab = true
-local ATTACK_RANGE = 25
-local POWER = 10000
-local SELECTED_MODE = "効果なし" 
+local player = Players.LocalPlayer
 
--- FTAPイベント (掴み回避用)
-local CharacterEvents = ReplicatedStorage:WaitForChild("CharacterEvents", 5)
-local StruggleEvent = CharacterEvents and CharacterEvents:FindFirstChild("Struggle")
-local IsHeld = LocalPlayer:WaitForChild("IsHeld", 5)
+-- === 設定変数 ===
+local tossMultiplier = 1.0
+local antiGrabEnabled = true -- 初期状態はON
 
--- メインウィンドウの作成
-local Window = Rayfield:CreateWindow({
-    Name = "⚡ものひとスクリプト & Anti-Grab",
-    LoadingTitle = "Loading Blitz System...",
-    LoadingSubtitle = "kmorin",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "BlitzAuraConfig",
-        FileName = "CombinedSettings"
-    }
-})
+-- === UI作成 ===
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ModMenuV2"
+screenGui.Parent = CoreGui
 
--- --- Main Settings タブ (Kill Aura) ---
-local MainTab = Window:CreateTab("Main Settings", 4483362458)
-MainTab:CreateSection("Kill Aura Controls")
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 250, 0, 250) -- 少し縦を長く
+mainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
 
-MainTab:CreateToggle({
-    Name = "Enable Kill Aura",
-    CurrentValue = false,
-    Flag = "KillAuraToggle",
-    Callback = function(Value)
-        getgenv().KillAuraActive = Value
-        local status = Value and "Activated!" or "Deactivated"
-        Rayfield:Notify({Title = "System", Content = "Kill Aura " .. status, Duration = 2})
-    end,
-})
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Text = "Mod Menu (Anti-Grab + Power)"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+title.Parent = mainFrame
 
-MainTab:CreateDropdown({
-    Name = "Attack Mode",
-    Options = {"効果なし", "ずっと飛ばし続ける", "はねる?"},
-    CurrentOption = {"効果なし"}, 
-    MultipleOptions = false,
-    Flag = "AttackMode",
-    Callback = function(Option)
-        SELECTED_MODE = Option[1]
-    end,
-})
+-- === アンチダッシュ/掴み無効トグルボタン ===
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0.9, 0, 0, 35)
+toggleBtn.Position = UDim2.new(0.05, 0, 0.15, 0)
+toggleBtn.Text = "Anti-Grab: ON"
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Parent = mainFrame
 
-MainTab:CreateSlider({
-    Name = "Attack Range",
-    Range = {10, 150},
-    Increment = 1,
-    Suffix = "Studs",
-    CurrentValue = 25,
-    Flag = "RangeSlider",
-    Callback = function(Value)
-        ATTACK_RANGE = Value
-    end,
-})
+-- パワー表示ラベル
+local pwrLabel = Instance.new("TextLabel")
+pwrLabel.Size = UDim2.new(1, 0, 0, 30)
+pwrLabel.Position = UDim2.new(0, 0, 0.4, 0)
+pwrLabel.Text = "Throw Power: x1.0"
+pwrLabel.TextColor3 = Color3.new(0, 1, 0)
+pwrLabel.BackgroundTransparency = 1
+pwrLabel.Parent = mainFrame
 
-MainTab:CreateSlider({
-    Name = "Yeet Power",
-    Range = {1000, 100000},
-    Increment = 500,
-    Suffix = "Velocity",
-    CurrentValue = 10000,
-    Flag = "PowerSlider",
-    Callback = function(Value)
-        POWER = Value
-    end,
-})
+-- パワーアップ/ダウンボタン
+local upBtn = Instance.new("TextButton")
+upBtn.Size = UDim2.new(0.4, 0, 0, 35)
+upBtn.Position = UDim2.new(0.05, 0, 0.6, 0)
+upBtn.Text = "Power +"
+upBtn.Parent = mainFrame
 
--- --- Defense タブ (Anti-Grab) ---
-local DefenseTab = Window:CreateTab("Defense", 4483362458)
-DefenseTab:CreateSection("Anti-Grab System")
+local downBtn = Instance.new("TextButton")
+downBtn.Size = UDim2.new(0.4, 0, 0, 35)
+downBtn.Position = UDim2.new(0.55, 0, 0.6, 0)
+downBtn.Text = "Power -"
+downBtn.Parent = mainFrame
 
-DefenseTab:CreateToggle({
-    Name = "Anti Grab (Perfect)",
-    CurrentValue = getgenv().antiGrab,
-    Flag = "AntiGrabToggle",
-    Callback = function(Value) 
-        getgenv().antiGrab = Value 
-    end,
-})
+-- === ロジック: ON/OFF切り替え ===
+toggleBtn.MouseButton1Click:Connect(function()
+    antiGrabEnabled = not antiGrabEnabled
+    if antiGrabEnabled then
+        toggleBtn.Text = "Anti-Grab: ON"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    else
+        toggleBtn.Text = "Anti-Grab: OFF"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+    end
+end)
 
--- ───────────────────────────────────────────────
---          ロジック一括管理 (Heartbeat/RenderStepped)
--- ───────────────────────────────────────────────
+upBtn.MouseButton1Click:Connect(function()
+    tossMultiplier = math.min(tossMultiplier + 0.5, 10.0)
+    pwrLabel.Text = "Throw Power: x" .. tostring(tossMultiplier)
+end)
 
--- Kill Aura ロジック
+downBtn.MouseButton1Click:Connect(function()
+    tossMultiplier = math.max(tossMultiplier - 0.5, 1.0)
+    pwrLabel.Text = "Throw Power: x" .. tostring(tossMultiplier)
+end)
+
+-- === 投げパワー強化ロジック ===
 RunService.Heartbeat:Connect(function()
-    if not getgenv().KillAuraActive then return end
-
-    local character = LocalPlayer.Character
-    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-    
-    if rootPart then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
-                local targetHum = player.Character:FindFirstChild("Humanoid")
-                
-                if targetRoot and targetHum and targetHum.Health > 0 then
-                    local distance = (targetRoot.Position - rootPart.Position).Magnitude
-                    
-                    if distance <= ATTACK_RANGE then
-                        if SELECTED_MODE == "ずっと飛ばし続ける" then
-                            targetRoot.Velocity = Vector3.new(targetRoot.Velocity.X * 2, POWER * 2, targetRoot.Velocity.Z * 2)
-                            local bf = targetRoot:FindFirstChild("AntiGravity") or Instance.new("BodyForce")
-                            bf.Name = "AntiGravity"
-                            bf.Force = Vector3.new(0, 50000, 0)
-                            bf.Parent = targetRoot
-                        elseif SELECTED_MODE == "はねる?" then
-                            targetRoot.RotVelocity = Vector3.new(100, 100, 100)
-                            targetRoot.Velocity = Vector3.new(math.random(-POWER, POWER), POWER, math.random(-POWER, POWER))
-                        end
-                    end
+    local char = player.Character
+    if char and tossMultiplier > 1.0 then
+        for _, part in pairs(workspace:GetDescendants()) do
+            -- pcallでNetworkOwnership取得時のエラーを回避
+            local success, owner = pcall(function() return part:GetNetworkOwner() end)
+            if success and owner == player and part:IsA("BasePart") then
+                if part.AssemblyLinearVelocity.Magnitude > 5 then
+                    part.AssemblyLinearVelocity = part.AssemblyLinearVelocity * tossMultiplier
                 end
             end
         end
     end
 end)
 
--- Anti-Grab ロジック
-RunService.RenderStepped:Connect(function()
-    if getgenv().antiGrab and IsHeld and IsHeld.Value then
-        if StruggleEvent then 
-            StruggleEvent:FireServer(LocalPlayer) 
+-- === アンチ掴み / ラグドール無効化ロジック ===
+RunService.Heartbeat:Connect(function()
+    if not antiGrabEnabled then return end -- OFFなら何もしない
+
+    local char = player.Character
+    if char and char:FindFirstChild("Humanoid") then
+        local hum = char.Humanoid
+        
+        -- ラグドール状態を即座に復帰
+        if hum:GetState() == Enum.HumanoidStateType.Ragdoll or hum.PlatformStanding then
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            hum.PlatformStanding = false
         end
         
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            char.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        -- 外部から付けられた拘束具(Weld/Constraint)を削除
+        for _, obj in pairs(char:GetDescendants()) do
+            if (obj:IsA("Constraint") or obj:IsA("Weld")) and not obj:IsA("Motor6D") then
+                obj:Destroy()
+            end
         end
     end
 end)
 
-Rayfield:Notify({Title = "Success", Content = "All Systems Loaded!", Duration = 3})
+-- リモートイベントへの連打 (ONの時のみ実行)
+task.spawn(function()
+    while task.wait(0.1) do
+        if antiGrabEnabled then
+            pcall(function()
+                ReplicatedStorage.GrabEvents.EndGrabEarly:FireServer()
+                ReplicatedStorage.CharacterEvents.Struggle:FireServer()
+            end)
+        end
+    end
+end)
+
+print("Mod Menu: Anti-Grab Toggle Added!")
