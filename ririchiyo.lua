@@ -1,106 +1,98 @@
-local Player = game:GetService("Players").LocalPlayer
-local Root = (Player.Character or Player.CharacterAdded:Wait()):WaitForChild("HumanoidRootPart")
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-local StealRemote = Remotes:WaitForChild("StealEntity")
-local ReplaceRemote = Remotes:WaitForChild("ReplaceEntity")
-local SellRemote = Remotes:WaitForChild("SellEntity")
+-- 1. 親となるPlayerGuiを取得（ここがUIの表示場所）
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-if Player.PlayerGui:FindFirstChild("MiniStealGui") then
-    Player.PlayerGui.MiniStealGui:Destroy()
-end
+-- 2. ScreenGuiを作成し、親をPlayerGuiに設定
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "HitboxGuiSystem"
+ScreenGui.ResetOnSpawn = false -- リスポーンしても消えない設定
+ScreenGui.Parent = PlayerGui
 
-local ScreenGui = Instance.new("ScreenGui", Player.PlayerGui)
-ScreenGui.Name = "MiniStealGui"
+-- 3. メインフレームの作成
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 200, 0, 120)
+MainFrame.Position = UDim2.new(0.5, -100, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+MainFrame.BorderSizePixel = 2
+MainFrame.Active = true
+MainFrame.Draggable = true -- マウスで動かせる
+MainFrame.Parent = ScreenGui
 
--- サイズを 260x400 から 180x240 に大幅縮小
-local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 180, 0, 240)
-Main.Position = UDim2.new(0.05, 0, 0.4, 0)
-Main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true
+-- 4. タイトル
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = "HITBOX CHANGER"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Title.Parent = MainFrame
 
-local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "AUTO STEAL"
-Title.TextColor3 = Color3.new(1, 1, 0)
-Title.BackgroundColor3 = Color3.fromRGB(60, 0, 150)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
+-- 5. ON/OFFボタン
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 180, 0, 35)
+ToggleBtn.Position = UDim2.new(0, 10, 0, 40)
+ToggleBtn.Text = "OFF"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+ToggleBtn.Parent = MainFrame
 
-local sellAuto, stealAuto, posLock, lockCF = false, false, false, nil
+-- 6. サイズ入力ボックス
+local SizeInput = Instance.new("TextBox")
+SizeInput.Size = UDim2.new(0, 180, 0, 30)
+SizeInput.Position = UDim2.new(0, 10, 0, 80)
+SizeInput.Text = "10"
+SizeInput.PlaceholderText = "Hitbox Size"
+SizeInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SizeInput.Parent = MainFrame
 
-task.spawn(function()
-    while task.wait() do
-        if posLock and lockCF then
-            Root.CFrame = lockCF
-            Root.Velocity = Vector3.zero
-        end
-    end
-end)
+----------------------------------------------------
+-- 動作ロジック
+----------------------------------------------------
+local isEnabled = false
 
-task.spawn(function()
-    while task.wait(0.3) do
-        if sellAuto then
-            for i = 1, 12 do SellRemote:FireServer(i) end
-        end
-    end
-end)
-
-task.spawn(function()
-    while task.wait(0.5) do
-        if stealAuto then
-            for _, target in ipairs(Players:GetPlayers()) do
-                if target == Player then continue end
-                local tBase = target:GetAttribute("Base")
-                if tBase then
-                    task.spawn(function()
-                        for slot = 1, 12 do
-                            if not stealAuto then break end
-                            StealRemote:FireServer(tBase, slot)
-                            ReplaceRemote:FireServer("Place", slot, slot)
-                        end
-                    end)
+local function applyHitbox()
+    local sizeVal = tonumber(SizeInput.Text) or 2
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                if isEnabled then
+                    hrp.Size = Vector3.new(sizeVal, sizeVal, sizeVal)
+                    hrp.Transparency = 0.6
+                    hrp.BrickColor = BrickColor.new("Bright blue")
+                    hrp.Material = Enum.Material.Neon
+                    hrp.CanCollide = false
+                else
+                    -- 元に戻す
+                    hrp.Size = Vector3.new(2, 2, 1)
+                    hrp.Transparency = 1
+                    hrp.CanCollide = true
                 end
             end
         end
     end
-end)
-
-local function CreateBtn(text, pos, color)
-    local btn = Instance.new("TextButton", Main)
-    btn.Size = UDim2.new(0.9, 0, 0, 40)
-    btn.Position = UDim2.new(0.05, 0, 0, pos)
-    btn.Text = text
-    btn.BackgroundColor3 = color
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 12
-    return btn
 end
 
-local LBtn = CreateBtn("LOCK POS: OFF", 50, Color3.fromRGB(50, 50, 50))
-LBtn.MouseButton1Click:Connect(function()
-    posLock = not posLock
-    lockCF = posLock and Root.CFrame or nil
-    LBtn.Text = posLock and "LOCK: ON" or "LOCK POS: OFF"
-    LBtn.BackgroundColor3 = posLock and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(50, 50, 50)
+-- ボタンクリックイベント
+ToggleBtn.MouseButton1Click:Connect(function()
+    isEnabled = not isEnabled
+    if isEnabled then
+        ToggleBtn.Text = "ON"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    else
+        ToggleBtn.Text = "OFF"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        applyHitbox() -- サイズをリセット
+    end
 end)
 
-local SBtn = CreateBtn("AUTO SELL: OFF", 100, Color3.fromRGB(50, 50, 50))
-SBtn.MouseButton1Click:Connect(function()
-    sellAuto = not sellAuto
-    SBtn.Text = sellAuto and "SELL: ON" or "AUTO SELL: OFF"
-    SBtn.BackgroundColor3 = sellAuto and Color3.fromRGB(0, 150, 80) or Color3.fromRGB(50, 50, 50)
-end)
-
-local TBtn = CreateBtn("AUTO STEAL: OFF", 150, Color3.fromRGB(50, 50, 50))
-TBtn.MouseButton1Click:Connect(function()
-    stealAuto = not stealAuto
-    TBtn.Text = stealAuto and "STEAL: ON" or "AUTO STEAL: OFF"
-    TBtn.BackgroundColor3 = stealAuto and Color3.fromRGB(200, 0, 50) or Color3.fromRGB(50, 50, 50)
+-- ループで常に実行（新しいプレイヤーやリスポーンに対応）
+RunService.RenderStepped:Connect(function()
+    if isEnabled then
+        applyHitbox()
+    end
 end)
